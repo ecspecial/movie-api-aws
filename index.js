@@ -26,27 +26,36 @@ app.use(bodyParser.urlencoded({ extended: true }));
 
 // Use Cross-Origin Resource Sharing on specific domains
 const cors = require('cors');
-app.use(cors());
+//app.use(cors());
 
-// let allowedOrigins = ['http://localhost:8080', 'http://testsite.com'];
+let allowedOrigins = [
+    'http://localhost:8080',
+    'http://localhost:4200',
+    'https://ecspecial-myflixapp.netlify.app',
+    'https://ecspecial.github.io',
+  ];
 
-// app.use(cors({
-//   origin: (origin, callback) => {
-//     if(!origin) return callback(null, true);
-//     if(allowedOrigins.indexOf(origin) === -1){ // If a specific origin isn’t found on the list of allowed origins
-//       let message = 'The CORS policy for this application doesn’t allow access from origin ' + origin;
-//       return callback(new Error(message ), false);
-//     }
-//     return callback(null, true);
-//   }
-// }));
+  app.use(
+    cors({
+      origin: (origin, callback) => {
+        if (!origin) {
+          return callback(null, true);
+        }
+        if (allowedOrigins.indexOf(origin) === -1) {
+          let message = `The CORS policy for this application doesn't allow access from origin ${origin}`;
+          return callback(new Error(message), false);
+        }
+        return callback(null, true);
+      },
+    })
+  );
 
 let auth = require('./auth.js')(app);
 const passport = require('passport');
 require('./passport.js');
 
 // Connect to MongoDB database
-//mongoose.connect('mongodb://127.0.0.1:27017/myFlixDB', { useNewUrlParser: true, useUnifiedTopology: true });
+//mongoose.connect('', { useNewUrlParser: true, useUnifiedTopology: true });
 mongoose.connect( process.env.CONNECTION_URI, { useNewUrlParser: true, useUnifiedTopology: true });
 
 // Route all requests for static data in public folder
@@ -187,14 +196,14 @@ app.put('/users/:Username', [
     }
 
     let hashedPassword = req.body.Password ? Users.hashPassword(req.body.Password) : Users.findOne({ Username: req.params.Username }).Password;
-    if (req.body.Username !== req.params.Username) {
+    if (req.body.Username  === req.params.Username) {
         Users.findOne({ Username: req.params.Username })
             .then((user) => {
                 if(!user) {
                     res.status(400).send('User not found.')
                 } else {
                     Users.findOneAndUpdate({ Username: req.params.Username }, {$set: {
-                            Username: req.body.Username,
+                            Username: req.params.Username,
                             Password: hashedPassword,
                             Email: req.body.Email,
                             Birthday: req.body.Birthday,
@@ -216,33 +225,44 @@ app.put('/users/:Username', [
                 res.status(500).send('Error: ' + error);
                 })
     } else {
-        Users.findOne({ Username: req.body.Username })
-            .then((user) => {
-                if(user) {
-                    res.status(400).send('User already exists.')
-                } else {
-                    Users.findOneAndUpdate({ Username: req.params.Username }, {$set: {
-                            Username: req.body.Username,
-                            Password: hashedPassword,
-                            Email: req.body.Email,
-                            Birthday: req.body.Birthday,
-                            FavoriteMovies: req.body.FavoriteMovies
-                        }
-                    },
-                    { new: true },
-                    (error, updatedUser) => {
-                        if (error) {
-                            console.log(error);
-                            res.status(500).send('Error: ' + error);
-                        } else {
-                            res.status(201).json(updatedUser);
-                        }
-                    });
-                }   
-            }).catch((error) => {
-                console.log(error);
-                res.status(500).send('Error: ' + error);
+        Users.findOne({ Username: req.params.Username })
+        .then((user) => {
+            if (user) {
+                Users.findOne({ Username: req.body.Username })
+                .then((updateUser) => {
+                    if(updateUser && updateUser._id !== user._id) {
+                        res.status(400).send('User already exists.')
+                    } else {
+                        Users.findOneAndUpdate({ Username: req.params.Username }, {$set: {
+                                Username: req.body.Username,
+                                Password: hashedPassword,
+                                Email: req.body.Email,
+                                Birthday: req.body.Birthday,
+                                FavoriteMovies: req.body.FavoriteMovies
+                            }
+                        },
+                        { new: true },
+                        (error, updatedUser) => {
+                            if (error) {
+                                console.log(error);
+                                res.status(500).send('Error: ' + error);
+                            } else {
+                                res.status(201).json(updatedUser);
+                            }
+                        });
+                    }   
+                }).catch((error) => {
+                    console.log(error);
+                    res.status(500).send('Error: ' + error);
+            })
+            } else {
+                res.status(400).send('User not found.')
+            }
         })
+        .catch((error) => {
+            console.log(error);
+            res.status(500).send('Error: ' + error);
+    })
     }
 });
 
